@@ -19,10 +19,23 @@ function setup() {
     pot.configure(ANALOG_IN)
 }
 
+// If true, logs the value of the band adjuster pot for tuning
 log_pot_values <- false
-thresholds <- [44602, 12200, 4160,2000,1]0
+
+// Thresholds on the pot for selecting the band
+thresholds <- [44602, 12200, 4160,2000,50]
+
+// Current value of eacn indicator pin
 pin_values <- [0,0,0,0,0]
+
+// 5 output pins, all set to display a level value.
 pins <- [ledv1, ledv2, ledv3, ledv4,ledv5]
+
+// Currently selected band (0-5)
+band_idx <- 0;
+
+// Quality values (0-5) for each band
+band_quality <- [0,0,0,0,0,0];
 
 // Map the pot value to 0-5 based on the thresholds set above
 // This lets us use a non-linear pot (which is what I happened to have wired u[)
@@ -70,18 +83,55 @@ function set_indicator(value=0)
     }
 }
 
+function display_current_band() {
+    local val = band_quality[band_idx]
+    server.log("Changing to display value " + val)
+    set_indicator(val)
+}
+
+function select_band(new_band_idx)
+{
+    if (new_band_idx != band_idx) {
+        server.log("Switching band to " + new_band_idx)
+        band_idx = new_band_idx
+        display_current_band()
+    }
+}
+ 
+function set_band(band_and_value) {
+    local band = band_and_value[0]
+    local val =  band_and_value[1]
+    server.log("Setting " + band + " to " + val)
+    band_quality[band] = val
+    display_current_band()
+}
+
+function set_bands(new_quality) {
+    local len = new_quality.len()
+    if (len > band_quality.len()) {
+        len = band_quality.len()
+    }
+    server.log("setting bands to " + new_quality)
+    for (local i=0; i++; i < len) {
+        band_quality[i] = new_quality[i]
+    }
+
+    display_current_band()
+}
+
 function poll()
 {
     // Read the pin and convert its value to 1-
     local new_value = map_pot(pot.read());
-    set_indicator(new_value)
+    select_band(new_value)
  
     // Wake up in 0.1 seconds and do it again
     imp.wakeup(0.1, poll)
 }
  
 // Start the loop
-agent.on("set_indicator", set_indicator)
+agent.on("set_bands", set_bands)
+agent.on("set_band", set_band)
 setup()
 
 poll()
