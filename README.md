@@ -1,5 +1,7 @@
 # PSKFreqMonitor
-Code for an Electric Imp that provides a visual indicator of the relative quality of PSK on various ham radio bands
+Code for an Electric Imp that provides a visual indicator of the relative quality of PSK on various ham radio bands.
+
+The project is the result of a homebrew challenge to build something ham-related that fits in an altoid tin.
 
 Electric Imp is an electronics component that lets you drive electronics from the cloud (see http://electricimp.com/)
 
