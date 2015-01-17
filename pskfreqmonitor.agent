@@ -1,6 +1,12 @@
 // Log the URL we can use to set this value
 server.log("Set band to quality " + http.agenturl() + "?band=0&quality=1")
 
+// Enumerate the 6 bands we care about
+bands <- [3,7,10,14,21,28]
+
+// Enumerate the thresholds for each quality value, 1 to 5
+thresholds <- [0, 100, 500, 800, 1000]
+
 // Call to set band and quality. Throws exception if out of range.
 function setBandQuality(band, quality) {
     if (band < 0 || band > 5) {
@@ -15,18 +21,74 @@ function setBandQuality(band, quality) {
     device.send("set_band",[band,quality])
 }
 
+// Take text from a pskreporter.info request and 
+// break it up into band summaries. The text is a series of \n
+// delimited lines, with the first two being freqency and score
+function parsePskInfoText(text) {
+    local rows = split(text,"\n")
+    
+    // Initialize table with our desired bands
+    local band_values = {}
+    foreach (band in bands) {
+        band_values[band] <- 0
+    }
+    
+    // This code is more convoluted than I'd like because I don't yet know
+    // how to check to see if a table has a given key without throwing an 
+    // exception
+    foreach (row in rows) {
+        local fields = split(row," ")
+        if (fields.len() > 2) {
+            local frequency = fields[0]
+            local ranking = fields[1]
+            // We're expecting a number like 14070000. We only care
+            // about the Mhz, so we convert it to a int then normalize
+            local freq_int = frequency.tointeger() / 1000000
+            foreach (freq in bands) {
+                if (freq == freq_int) {
+                    band_values[freq_int] += ranking.tointeger()
+                }
+            }
+        }
+    }
+    
+    return band_values
+}
+
+function convertToQuality(value) {
+    for (local i=4;i>=0;i--) {
+        server.log(format("   %d,%d",value,thresholds[i]))
+        if (value > thresholds[i]) {
+            return i+1
+        }
+    }
+    
+    return 0
+}
+
 // This handler will be called on the above URL
 function requestHandler(request, response) {
     try {
         local message=""
+        if ("psk" in request.query) {
+            server.log("Calling PSKReporter.info")
+            local band_values = parsePskInfoText(TEST_DATA)
+            for (local i=0;i < bands.len(); i++) {
+                local freq = bands[i]
+                local quality = convertToQuality(band_values[freq])
+                server.log(format("Setting %d->%d (%d)", freq, quality,band_values[freq]))
+                setBandQuality(i, quality)
+            }
+            message = "Updated from PSK"
+        }
         // Only continue if we have the necessary params
-        if ("band" in request.query && "quality" in request.query ) {
+        else if ("band" in request.query && "quality" in request.query ) {
             local band = request.query.band.tointeger()
             local quality = request.query.quality.tointeger()
 
             setBandQuality(band, quality)
             message = format("Set band %d to quality %d",band,quality)
-        }
+        } 
         
         // Everything copacetic, Tell the requester.
         response.send(200, format(HTML,message,http.agenturl()))
@@ -65,8 +127,51 @@ Quality: <select name='quality'>
 <option>5</option>
 </select>
 <br/>
+<input name='psk' type='hidden' value='1'>
 <input type='submit' value='Change'>
 </form>
 </body>
 </html>
 "
+
+TEST_DATA <- @"21080000 1051 278 6 13
+14070000 581 136 9 11
+14080000 409 177 2 18
+28080000 262 71 4 18
+18100000 259 49 2 6
+24920000 170 65 7 9
+14020000 81 13 3 1
+10130000 44 32 1 1
+21070000 40 16 2 5
+18090000 36 7 4 1
+14010000 26 9 2 1
+14030000 26 7 2 1
+18080000 24 6 1 1
+10110000 20 2 1 1
+10120000 18 7 1 1
+7080000 17 7 1 4
+7050000 15 2 2 0
+18110000 15 2 1 0
+3580000 15 2 2 0
+10140000 13 4 1 2
+28120000 11 2 1 1
+14060000 10 3 2 1
+7010000 10 2 1 1
+21350000 10 1 1 0
+144370000 10 1 1 0
+1820000 10 1 1 0
+21330000 10 1 1 0
+14110000 10 2 1 0
+14040000 9 4 1 1
+24910000 5 2 1 1
+14090000 5 1 1 0
+21060000 4 3 0 1
+7060000 3 2 0 1
+28040000 3 2 0 1
+14050000 2 2 0 1
+18070000 2 2 0 1
+21030000 2 2 0 1
+21020000 1 1 0 1
+21050000 1 1 0 1
+14240000 0 1 0 1"
+
