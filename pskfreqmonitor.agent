@@ -1,29 +1,35 @@
 // Log the URL we can use to set this value
 server.log("Set band to quality " + http.agenturl() + "?band=0&quality=1")
 
+// Call to set band and quality. Throws exception if out of range.
+function setBandQuality(band, quality) {
+    if (band < 0 || band > 5) {
+        throw "Band must be between 0 and 5 inclusive"
+    }
+    
+    if (quality < 0 || quality > 5) {
+        throw "Quality must be between 0 and 5 inclusive"
+    }
+
+    // Tell imp to set the specified band to the specified quality
+    device.send("set_band",[band,quality])
+}
+
 // This handler will be called on the above URL
 function requestHandler(request, response) {
     try {
+        local message=""
         // Only continue if we have the necessary params
         if ("band" in request.query && "quality" in request.query ) {
             local band = request.query.band.tointeger()
             local quality = request.query.quality.tointeger()
-            if (band < 0 || band > 5) {
-                response.send(500,"Band must be between 0 and 5 inclusive")
-                return
-            }
-            
-            if (quality < 0 || quality > 5) {
-                response.send(500,"Quality must be between 0 and 5 inclusive")
-                return
-            }
 
-            // Tell imp to set the specified band to the specified quality
-            device.send("set_band",[band,quality])
+            setBandQuality(band, quality)
+            message = format("Set band %d to quality %d",band,quality)
         }
         
         // Everything copacetic, Tell the requester.
-        response.send(200, "OK")
+        response.send(200, format(HTML,message,http.agenturl()))
     } catch (ex) {
         // Something bad happened. Tell the requester.
         response.send(500, "Internal Server Error: " + ex)
@@ -33,3 +39,34 @@ function requestHandler(request, response) {
 // Set the above handler to run on http requests
 http.onrequest(requestHandler);
 
+HTML <- @"<html>
+<head>
+<title>PSKFreqMonitor Test Page</title>
+</head>
+<body>
+<h1>PSKFreqMonitor Control</h1>
+%s
+<form action='%s' method='GET'>
+Band: <select name='band'>
+<option>0</option>
+<option>1</option>
+<option>2</option>
+<option>3</option>
+<option>4</option>
+<option>5</option>
+</select>
+<br/>
+Quality: <select name='quality'>
+<option>0</option>
+<option>1</option>
+<option>2</option>
+<option>3</option>
+<option>4</option>
+<option>5</option>
+</select>
+<br/>
+<input type='submit' value='Change'>
+</form>
+</body>
+</html>
+"
