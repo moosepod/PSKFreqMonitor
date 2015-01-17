@@ -1,26 +1,35 @@
 // Log the URL we can use to set this value
-server.log("Set band to quality " + http.agenturl() + "?band=0&quality=1");
+server.log("Set band to quality " + http.agenturl() + "?band=0&quality=1")
 
 // This handler will be called on the above URL
 function requestHandler(request, response) {
     try {
         // Only continue if we have the necessary params
         if ("band" in request.query && "quality" in request.query ) {
-            device.send("set_band",[0,5]);
-            device.send("set_band",[1,4]);
-            device.send("set_band",[2,3]);
-            device.send("set_band",[3,2]);
-            device.send("set_band",[4,1]);
+            local band = request.query.band.tointeger()
+            local quality = request.query.quality.tointeger()
+            if (band < 0 || band > 5) {
+                response.send(500,"Band must be between 0 and 5 inclusive")
+                return
+            }
+            
+            if (quality < 0 || quality > 5) {
+                response.send(500,"Quality must be between 0 and 5 inclusive")
+                return
+            }
+
+            // Tell imp to set the specified band to the specified quality
+            device.send("set_band",[band,quality])
         }
         
         // Everything copacetic, Tell the requester.
-        response.send(200, "OK");
+        response.send(200, "OK")
     } catch (ex) {
         // Something bad happened. Tell the requester.
-        response.send(500, "Internal Server Error: " + ex);
+        response.send(500, "Internal Server Error: " + ex)
     }
 }
  
 // Set the above handler to run on http requests
-http.onrequest(requestHandler); 
+http.onrequest(requestHandler);
 
